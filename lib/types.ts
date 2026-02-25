@@ -23,6 +23,7 @@ export interface StyleProfile {
   aesthetic: string;
   budgetRange: string;
   sizes: string;
+  shoeSize: string;
   gender: string;
   avoidBrands: string;
   notes: string;

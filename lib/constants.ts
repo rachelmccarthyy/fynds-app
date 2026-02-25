@@ -52,7 +52,8 @@ export function buildSystemPrompt(profile?: StyleProfile | null): string {
   if (profile.aesthetic) profileParts.push(`- Aesthetic: ${profile.aesthetic}`);
   if (profile.budgetRange)
     profileParts.push(`- Budget: ${profile.budgetRange}`);
-  if (profile.sizes) profileParts.push(`- Size: ${profile.sizes}`);
+  if (profile.sizes) profileParts.push(`- Clothing size: ${profile.sizes}`);
+  if (profile.shoeSize) profileParts.push(`- Shoe size: ${profile.shoeSize}`);
   if (profile.avoidBrands)
     profileParts.push(`- Brands to avoid: ${profile.avoidBrands}`);
   if (profile.notes) profileParts.push(`- Additional notes: ${profile.notes}`);

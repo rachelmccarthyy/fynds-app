@@ -26,6 +26,7 @@ export default function StyleQuiz() {
     aesthetic: "",
     budgetRange: "",
     sizes: "",
+    shoeSize: "",
     avoidBrands: "",
     notes: "",
   });
@@ -53,6 +54,7 @@ export default function StyleQuiz() {
       aesthetic: p.aesthetic || "",
       budgetRange: p.budgetRange || "",
       sizes: p.sizes || "",
+      shoeSize: p.shoeSize || "",
       avoidBrands: p.avoidBrands || "",
       notes: p.notes || "",
     });

@@ -13,6 +13,7 @@ import LoadingIndicator from "./LoadingIndicator";
 import StyleQuiz from "./StyleQuiz";
 import CartDrawer from "./CartDrawer";
 import FavoritesDrawer from "./FavoritesDrawer";
+import { DesktopSidebar, MobileFilterChips } from "./FilterSidebar";
 
 export default function ChatInterface() {
   const { styleProfile } = useStore();
@@ -121,12 +122,18 @@ export default function ChatInterface() {
       <FavoritesDrawer />
 
       <div className="flex flex-col md:flex-row h-[calc(100vh-65px)]">
+        {/* Filter sidebar — desktop only */}
+        <DesktopSidebar />
+
         {/* Chat Column */}
         <div
           className={`flex flex-col ${
-            hasSidebar ? "md:w-[40%]" : "md:w-full md:max-w-2xl md:mx-auto"
+            hasSidebar ? "md:w-[40%]" : "md:flex-1 md:max-w-2xl md:mx-auto"
           } w-full h-full transition-all duration-300`}
         >
+          {/* Mobile filter chips */}
+          <MobileFilterChips />
+
           {/* Messages */}
           <div className="flex-1 overflow-y-auto chat-scroll px-4 py-6">
             <div className="flex flex-col gap-4 max-w-2xl mx-auto">
@@ -175,7 +182,7 @@ export default function ChatInterface() {
 
         {/* Product/Outfit Column — desktop only */}
         {hasSidebar && (
-          <div className="hidden md:block md:w-[60%] border-l border-gray-100 overflow-y-auto bg-surface p-6">
+          <div className="hidden md:block md:w-[55%] border-l border-gray-100 overflow-y-auto bg-surface p-6">
             {hasOutfit ? (
               <>
                 <h2 className="text-sm font-semibold text-muted uppercase tracking-wide mb-4">

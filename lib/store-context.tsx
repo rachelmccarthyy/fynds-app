@@ -27,6 +27,8 @@ interface StoreContextType {
   setIsCartOpen: (open: boolean) => void;
   setIsFavoritesOpen: (open: boolean) => void;
   setStyleProfile: (profile: StyleProfile) => void;
+  updateStyleField: (field: keyof StyleProfile, value: string) => void;
+  clearStyleProfile: () => void;
   clearStore: () => void;
 }
 
@@ -148,6 +150,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setStyleProfileState(profile);
   }, []);
 
+  const updateStyleField = useCallback(
+    (field: keyof StyleProfile, value: string) => {
+      setStyleProfileState((prev) => {
+        if (!prev) return prev;
+        return { ...prev, [field]: value };
+      });
+    },
+    []
+  );
+
+  const clearStyleProfile = useCallback(() => {
+    setStyleProfileState(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("fynds-profile");
+    }
+  }, []);
+
   const clearStore = useCallback(() => {
     setCart([]);
     setFavorites([]);
@@ -175,6 +194,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setIsCartOpen,
         setIsFavoritesOpen,
         setStyleProfile,
+        updateStyleField,
+        clearStyleProfile,
         clearStore,
       }}
     >
