@@ -1,10 +1,14 @@
 "use client";
 
 import { useStore } from "@/lib/store-context";
+import { useCheckout } from "@/lib/checkout-context";
+import { useSession } from "next-auth/react";
 import Image from "next/image";
 
 export default function CartDrawer() {
   const { cart, isCartOpen, setIsCartOpen, removeFromCart } = useStore();
+  const { startCheckout } = useCheckout();
+  const { data: session } = useSession();
 
   if (!isCartOpen) return null;
 
@@ -89,9 +93,45 @@ export default function CartDrawer() {
                     <h3 className="text-xs font-medium text-fg line-clamp-2 leading-snug">
                       {product.title}
                     </h3>
-                    <p className="text-sm font-semibold text-pink mt-1">
-                      {product.price}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-sm font-semibold text-pink">
+                        {product.price}
+                      </p>
+                      <span className="text-[9px] text-muted bg-surface px-1.5 py-0.5 rounded">
+                        {product.source}
+                      </span>
+                    </div>
+                    {/* Rating */}
+                    {product.rating && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-[9px] text-amber-600 font-medium">
+                          {"★".repeat(Math.round(product.rating))}{"☆".repeat(5 - Math.round(product.rating))}
+                        </span>
+                        <span className="text-[9px] text-muted">
+                          {product.rating}{product.ratingCount ? ` (${product.ratingCount > 1000 ? `${(product.ratingCount / 1000).toFixed(1)}k` : product.ratingCount})` : ""}
+                        </span>
+                      </div>
+                    )}
+                    {/* User-selected options */}
+                    {product.options && (product.options.size || product.options.color || product.options.notes) && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {product.options.size && (
+                          <span className="text-[9px] px-1.5 py-0.5 bg-pink/10 text-pink rounded font-medium">
+                            Size: {product.options.size}
+                          </span>
+                        )}
+                        {product.options.color && (
+                          <span className="text-[9px] px-1.5 py-0.5 bg-pink/10 text-pink rounded font-medium">
+                            Color: {product.options.color}
+                          </span>
+                        )}
+                        {product.options.notes && (
+                          <span className="text-[9px] px-1.5 py-0.5 bg-surface rounded text-muted font-medium">
+                            {product.options.notes}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mt-1.5">
                       <a
                         href={product.link}
@@ -115,6 +155,27 @@ export default function CartDrawer() {
             </div>
           )}
         </div>
+
+        {/* Checkout button */}
+        {cart.length > 0 && (
+          <div className="px-5 py-4 border-t border-gray-100">
+            {session?.user ? (
+              <button
+                onClick={startCheckout}
+                className="w-full py-3 bg-pink text-white text-sm font-semibold rounded-xl hover:bg-pink-dark transition-colors"
+              >
+                Checkout with Fynds
+              </button>
+            ) : (
+              <p className="text-xs text-center text-muted">
+                <a href="/api/auth/signin" className="text-pink hover:underline font-medium">
+                  Sign in
+                </a>{" "}
+                to checkout with Fynds
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

@@ -9,7 +9,7 @@ import {
   ReactNode,
 } from "react";
 import { useSession } from "next-auth/react";
-import { Product, SavedProduct, StyleProfile } from "./types";
+import { Product, ProductOptions, SavedProduct, StyleProfile } from "./types";
 
 const ONE_HOUR = 60 * 60 * 1000;
 
@@ -19,8 +19,9 @@ interface StoreContextType {
   styleProfile: StyleProfile | null;
   isCartOpen: boolean;
   isFavoritesOpen: boolean;
-  addToCart: (product: Product) => void;
+  addToCart: (product: Product, options?: ProductOptions) => void;
   removeFromCart: (product: Product) => void;
+  clearCart: () => void;
   toggleFavorite: (product: Product) => void;
   isInCart: (product: Product) => boolean;
   isFavorite: (product: Product) => boolean;
@@ -117,15 +118,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [styleProfile, hydrated]);
 
-  const addToCart = useCallback((product: Product) => {
+  const addToCart = useCallback((product: Product, options?: ProductOptions) => {
     setCart((prev) => {
       if (prev.some((p) => p.link === product.link)) return prev;
-      return [...prev, { ...product, savedAt: Date.now() }];
+      return [...prev, { ...product, savedAt: Date.now(), options }];
     });
   }, []);
 
   const removeFromCart = useCallback((product: Product) => {
     setCart((prev) => prev.filter((p) => p.link !== product.link));
+  }, []);
+
+  const clearCart = useCallback(() => {
+    setCart([]);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("fynds-cart");
+    }
   }, []);
 
   const toggleFavorite = useCallback((product: Product) => {
@@ -188,6 +196,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         isFavoritesOpen,
         addToCart,
         removeFromCart,
+        clearCart,
         toggleFavorite,
         isInCart,
         isFavorite,

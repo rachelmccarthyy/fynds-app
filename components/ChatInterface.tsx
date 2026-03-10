@@ -13,6 +13,7 @@ import LoadingIndicator from "./LoadingIndicator";
 import StyleQuiz from "./StyleQuiz";
 import CartDrawer from "./CartDrawer";
 import FavoritesDrawer from "./FavoritesDrawer";
+import CheckoutFlow from "./CheckoutFlow";
 import { DesktopSidebar, MobileFilterChips } from "./FilterSidebar";
 
 export default function ChatInterface() {
@@ -120,6 +121,7 @@ export default function ChatInterface() {
       {/* Drawers */}
       <CartDrawer />
       <FavoritesDrawer />
+      <CheckoutFlow />
 
       <div className="flex flex-col md:flex-row h-[calc(100vh-65px)]">
         {/* Filter sidebar — desktop only */}

@@ -45,6 +45,10 @@ async function searchProducts(query: string): Promise<Product[]> {
           link?: string;
           imageUrl?: string;
           position?: number;
+          rating?: number;
+          ratingCount?: number;
+          productId?: string;
+          delivery?: string;
         },
         index: number
       ) => ({
@@ -54,6 +58,10 @@ async function searchProducts(query: string): Promise<Product[]> {
         link: item.link || "",
         imageUrl: item.imageUrl || "",
         position: item.position || index + 1,
+        rating: item.rating,
+        ratingCount: item.ratingCount,
+        productId: item.productId,
+        delivery: item.delivery,
       })
     );
   } catch (error) {

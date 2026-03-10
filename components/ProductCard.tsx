@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { Product } from "@/lib/types";
 import { useStore } from "@/lib/store-context";
 import Image from "next/image";
@@ -8,16 +9,129 @@ interface ProductCardProps {
   product: Product;
 }
 
+interface VariantOption {
+  label: string;
+  values: string[];
+}
+
+interface ProductOptions {
+  sizes: string[];
+  colors: string[];
+  other: VariantOption[];
+}
+
+function StarRating({ rating }: { rating: number }) {
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.3;
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {Array.from({ length: 5 }, (_, i) => (
+        <svg
+          key={i}
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill={i < full ? "#f59e0b" : i === full && half ? "url(#half)" : "#e5e7eb"}
+          stroke="none"
+        >
+          {i === full && half && (
+            <defs>
+              <linearGradient id="half">
+                <stop offset="50%" stopColor="#f59e0b" />
+                <stop offset="50%" stopColor="#e5e7eb" />
+              </linearGradient>
+            </defs>
+          )}
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+      ))}
+    </span>
+  );
+}
+
+function formatRatingCount(count: number): string {
+  if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`;
+  return count.toString();
+}
+
 export default function ProductCard({ product }: ProductCardProps) {
   const { addToCart, removeFromCart, toggleFavorite, isInCart, isFavorite } =
     useStore();
 
   const inCart = isInCart(product);
   const favorited = isFavorite(product);
+  const [showOptions, setShowOptions] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [productOptions, setProductOptions] = useState<ProductOptions | null>(null);
+  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedColor, setSelectedColor] = useState("");
+  const [selectedOther, setSelectedOther] = useState<Record<string, string>>({});
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (!showOptions) return;
+    const handleClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowOptions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showOptions]);
+
+  const fetchOptions = async () => {
+    setLoading(true);
+    setShowOptions(true);
+    try {
+      const res = await fetch("/api/product-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: product.link,
+          title: product.title,
+          source: product.source,
+        }),
+      });
+      const data = await res.json();
+      setProductOptions(data);
+    } catch {
+      setProductOptions({ sizes: [], colors: [], other: [] });
+    }
+    setLoading(false);
+  };
+
+  const handleAddToCart = () => {
+    const notes = Object.entries(selectedOther)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ");
+
+    const options =
+      selectedSize || selectedColor || notes
+        ? {
+            size: selectedSize || undefined,
+            color: selectedColor || undefined,
+            notes: notes || undefined,
+          }
+        : undefined;
+    addToCart(product, options);
+    setShowOptions(false);
+    setSelectedSize("");
+    setSelectedColor("");
+    setSelectedOther({});
+    setProductOptions(null);
+  };
+
+  const hasOptions =
+    productOptions &&
+    (productOptions.sizes.length > 0 ||
+      productOptions.colors.length > 0 ||
+      productOptions.other.length > 0);
 
   return (
     <div className="group relative bg-white border border-gray-100 rounded-xl overflow-hidden hover:shadow-md hover:scale-[1.02] transition-all duration-200">
-      {/* Image — clicks open product link */}
+      {/* Image */}
       <a
         href={product.link}
         target="_blank"
@@ -39,7 +153,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         )}
       </a>
 
-      {/* Heart button — top-right of image */}
+      {/* Heart button */}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -48,29 +162,16 @@ export default function ProductCard({ product }: ProductCardProps) {
         className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform z-10"
         aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
       >
-        {favorited ? (
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="#FF1D6C"
-            stroke="#FF1D6C"
-            strokeWidth="2"
-          >
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-          </svg>
-        ) : (
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#9ca3af"
-            strokeWidth="2"
-          >
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-          </svg>
-        )}
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill={favorited ? "#FF1D6C" : "none"}
+          stroke={favorited ? "#FF1D6C" : "#9ca3af"}
+          strokeWidth="2"
+        >
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </svg>
       </button>
 
       {/* Product info */}
@@ -78,49 +179,183 @@ export default function ProductCard({ product }: ProductCardProps) {
         <h3 className="text-xs font-medium text-fg line-clamp-2 leading-snug">
           {product.title}
         </h3>
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-sm font-semibold text-pink">
-            {product.price}
-          </span>
-          <span className="text-[10px] text-muted truncate ml-2 max-w-[80px]">
-            {product.source}
-          </span>
+
+        {/* Rating */}
+        {product.rating && (
+          <div className="flex items-center gap-1 mt-1.5">
+            <StarRating rating={product.rating} />
+            <span className="text-[10px] text-muted">
+              {product.rating}
+              {product.ratingCount ? ` (${formatRatingCount(product.ratingCount)})` : ""}
+            </span>
+          </div>
+        )}
+
+        {/* Price + Source */}
+        <div className="mt-1.5 flex items-center justify-between">
+          <span className="text-sm font-semibold text-pink">{product.price}</span>
+          <span className="text-[10px] text-muted truncate ml-2 max-w-[80px]">{product.source}</span>
         </div>
 
-        {/* Add to Cart button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (inCart) {
-              removeFromCart(product);
-            } else {
-              addToCart(product);
-            }
-          }}
-          className={`mt-2 w-full text-xs font-medium py-1.5 rounded-lg transition-all duration-200 ${
-            inCart
-              ? "bg-pink/10 text-pink border border-pink/20"
-              : "bg-gray-50 text-fg hover:bg-pink hover:text-white border border-gray-100"
-          }`}
-        >
+        {/* Delivery */}
+        {product.delivery && (
+          <p className="text-[10px] text-green-600 mt-1">{product.delivery}</p>
+        )}
+
+        {/* Add to Cart */}
+        <div className="relative mt-2">
           {inCart ? (
-            <span className="flex items-center justify-center gap-1">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              In Cart
-            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                removeFromCart(product);
+              }}
+              className="w-full text-xs font-medium py-1.5 rounded-lg transition-all duration-200 bg-pink/10 text-pink border border-pink/20"
+            >
+              <span className="flex items-center justify-center gap-1">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                In Cart
+              </span>
+            </button>
           ) : (
-            "Add to Cart"
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                fetchOptions();
+              }}
+              className="w-full text-xs font-medium py-1.5 rounded-lg transition-all duration-200 bg-gray-50 text-fg hover:bg-pink hover:text-white border border-gray-100"
+            >
+              Add to Cart
+            </button>
           )}
-        </button>
+
+          {/* Options popover */}
+          {showOptions && (
+            <div
+              ref={popoverRef}
+              className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-30 max-h-[320px] overflow-y-auto"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center py-4 gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-pink border-t-transparent animate-spin" />
+                  <span className="text-[11px] text-muted">Loading options...</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Sizes */}
+                  {productOptions && productOptions.sizes.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-fg mb-1.5">Size</p>
+                      <div className="flex flex-wrap gap-1">
+                        {productOptions.sizes.map((s) => (
+                          <button
+                            key={s}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSize(selectedSize === s ? "" : s);
+                            }}
+                            className={`px-2 py-1 text-[10px] rounded-md border transition-all ${
+                              selectedSize === s
+                                ? "bg-pink text-white border-pink"
+                                : "bg-white text-fg border-gray-200 hover:border-pink"
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Colors */}
+                  {productOptions && productOptions.colors.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-fg mb-1.5">Color</p>
+                      <div className="flex flex-wrap gap-1">
+                        {productOptions.colors.map((c) => (
+                          <button
+                            key={c}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedColor(selectedColor === c ? "" : c);
+                            }}
+                            className={`px-2 py-1 text-[10px] rounded-md border transition-all ${
+                              selectedColor === c
+                                ? "bg-pink text-white border-pink"
+                                : "bg-white text-fg border-gray-200 hover:border-pink"
+                            }`}
+                          >
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Other options */}
+                  {productOptions?.other?.map((opt) => (
+                    <div key={opt.label}>
+                      <p className="text-[10px] font-semibold text-fg mb-1.5">{opt.label}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {opt.values.map((v) => (
+                          <button
+                            key={v}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedOther((prev) => ({
+                                ...prev,
+                                [opt.label]: prev[opt.label] === v ? "" : v,
+                              }));
+                            }}
+                            className={`px-2 py-1 text-[10px] rounded-md border transition-all ${
+                              selectedOther[opt.label] === v
+                                ? "bg-pink text-white border-pink"
+                                : "bg-white text-fg border-gray-200 hover:border-pink"
+                            }`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* No options found message */}
+                  {!hasOptions && (
+                    <p className="text-[10px] text-muted text-center py-1">
+                      No variant options found — add directly
+                    </p>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowOptions(false);
+                        setProductOptions(null);
+                      }}
+                      className="flex-1 text-[10px] font-medium py-1.5 text-muted hover:text-fg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddToCart();
+                      }}
+                      className="flex-1 text-[10px] font-semibold py-1.5 bg-pink text-white rounded-lg hover:bg-pink-dark transition-colors"
+                    >
+                      Add to Cart
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
