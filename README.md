@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fynds AI
 
-## Getting Started
+**AI-powered personal shopping tool that translates how people actually describe what they want into real, shoppable product recommendations.**
 
-First, run the development server:
+[Live App](https://fynds-app-eta.vercel.app)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## The Problem
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+People don't think in search keywords. They think in contexts: "something for a rooftop dinner in July" or "comfortable but not frumpy." Traditional e-commerce search forces users to translate their intent into the platform's language. Fynds flips that — it treats AI as a translation layer between how people naturally express what they want and what's actually available to buy.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How It Works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Users start with a style profile quiz that captures aesthetic preferences, budget, and sizing. This reduces the cold-start problem by giving the AI enough context to be useful from the first query. From there, users describe what they're looking for in plain English and Fynds returns real, shoppable product recommendations from across the web.
 
-## Learn More
+The core UX is a "Chat-to-Cart" flow designed in Figma and refined through iterative usability testing.
 
-To learn more about Next.js, take a look at the following resources:
+## Product Decisions
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Style profile as onboarding:** The quiz isn't just data collection — it's a product decision about reducing cold-start friction. Without it, the AI would need several rounds of back-and-forth to give useful recommendations.
+- **AI as translation, not conversation:** The Claude API isn't used as a chatbot. It's a translation service between natural-language intent and structured product search. This distinction shaped the entire UX.
+- **Monetization model:** Affiliate commissions + transaction fees, designed around scalable unit economics from day one.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Stack
 
-## Deploy on Vercel
+Next.js · TypeScript · Claude API (Anthropic) · React · Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Validation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+20+ customer discovery interviews conducted to validate demand and refine the core value proposition before building.
+
+---
+
+Built by [Rachel McCarthy](https://rachelmccarthy.io)
