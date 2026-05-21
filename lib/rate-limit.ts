@@ -63,7 +63,7 @@ function extractOrigin(url: string): string | null {
  * in some contexts) and for requests whose Origin matches the app's allowlist.
  * Returns false for cross-origin callers not in the allowlist.
  *
- * Allowlist is built lazily (at call time) so NEXTAUTH_URL can be stubbed in tests.
+ * Allowlist is built lazily (at call time) so APP_URL can be stubbed in tests.
  * Same-host check covers Vercel preview deployments whose URLs aren't known at build time.
  */
 export function isTrustedOrigin(req: RequestLike): boolean {
@@ -71,7 +71,7 @@ export function isTrustedOrigin(req: RequestLike): boolean {
   if (!origin) return true; // same-origin or non-browser caller; rate limit handles volume
 
   const allowed = [
-    process.env.NEXTAUTH_URL,
+    process.env.APP_URL,
     "http://localhost:3003",
     "http://localhost:3000",
   ]
