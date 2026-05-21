@@ -92,9 +92,11 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
+    // Capture current path at click time so the user returns to where they were.
+    // window.location.origin is the environment origin (prod or preview) — never hardcoded.
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/shop`
+        ? `${window.location.origin}${window.location.pathname}`
         : undefined;
 
     if (user?.is_anonymous) {
