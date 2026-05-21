@@ -3,16 +3,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSupabaseAuth } from "@/lib/supabase/auth-context";
 import { useStore } from "@/lib/store-context";
 import { useState } from "react";
 
 export default function Header() {
   const pathname = usePathname();
   const isLanding = pathname === "/";
-  const { data: session } = useSession();
+  const { user, isPermanentUser, signInWithGoogle, handleSignOut } = useSupabaseAuth();
   const { cart, favorites, setIsCartOpen, setIsFavoritesOpen, clearStore } = useStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const avatar = user?.user_metadata?.avatar_url as string | undefined;
+  const displayName = (user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email) as string | undefined;
+  const email = user?.email;
 
   return (
     <header
@@ -97,23 +101,23 @@ export default function Header() {
               </button>
 
               {/* Auth section */}
-              {session?.user ? (
+              {isPermanentUser ? (
                 <div className="relative">
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded-lg transition-colors"
                   >
-                    {session.user.image ? (
+                    {avatar ? (
                       <Image
-                        src={session.user.image}
-                        alt={session.user.name || "User"}
+                        src={avatar}
+                        alt={displayName || "User"}
                         width={28}
                         height={28}
                         className="rounded-full"
                       />
                     ) : (
                       <div className="w-7 h-7 bg-pink text-white rounded-full flex items-center justify-center text-xs font-bold">
-                        {session.user.name?.[0] || "U"}
+                        {displayName?.[0]?.toUpperCase() || "U"}
                       </div>
                     )}
                   </button>
@@ -126,16 +130,15 @@ export default function Header() {
                       <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
                         <div className="px-3 py-2 border-b border-gray-100">
                           <p className="text-sm font-medium text-fg truncate">
-                            {session.user.name}
+                            {displayName}
                           </p>
-                          <p className="text-xs text-muted truncate">
-                            {session.user.email}
-                          </p>
+                          <p className="text-xs text-muted truncate">{email}</p>
                         </div>
                         <button
                           onClick={() => {
                             clearStore();
-                            signOut({ redirectTo: "/" });
+                            handleSignOut();
+                            setShowUserMenu(false);
                           }}
                           className="w-full text-left px-3 py-2 text-sm text-fg hover:bg-gray-50 transition-colors"
                         >
@@ -147,7 +150,7 @@ export default function Header() {
                 </div>
               ) : (
                 <button
-                  onClick={() => signIn("google")}
+                  onClick={signInWithGoogle}
                   className="text-xs font-medium text-fg hover:text-pink transition-colors px-3 py-1.5 border border-gray-200 rounded-lg hover:border-pink/30"
                 >
                   Sign in

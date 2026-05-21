@@ -85,13 +85,13 @@ describe("isTrustedOrigin", () => {
     expect(isTrustedOrigin(makeReq("http://localhost:3000"))).toBe(true);
   });
 
-  it("trusts the production origin set via NEXTAUTH_URL", () => {
-    vi.stubEnv("NEXTAUTH_URL", "https://fynds.ai");
+  it("trusts the production origin set via APP_URL", () => {
+    vi.stubEnv("APP_URL", "https://fynds.ai");
     expect(isTrustedOrigin(makeReq("https://fynds.ai"))).toBe(true);
   });
 
-  it("trusts NEXTAUTH_URL even when it includes a path (extracts scheme+host only)", () => {
-    vi.stubEnv("NEXTAUTH_URL", "https://fynds.ai/some/path");
+  it("trusts APP_URL even when it includes a path (extracts scheme+host only)", () => {
+    vi.stubEnv("APP_URL", "https://fynds.ai/some/path");
     expect(isTrustedOrigin(makeReq("https://fynds.ai"))).toBe(true);
   });
 
@@ -100,13 +100,13 @@ describe("isTrustedOrigin", () => {
   });
 
   it("blocks a caller whose origin shares a prefix but is not an exact match", () => {
-    vi.stubEnv("NEXTAUTH_URL", "https://fynds.ai");
+    vi.stubEnv("APP_URL", "https://fynds.ai");
     // Must not match on prefix — exact scheme://host comparison only
     expect(isTrustedOrigin(makeReq("https://fynds.ai.evil.com"))).toBe(false);
   });
 
   it("blocks an http variant when the allowlist entry is https", () => {
-    vi.stubEnv("NEXTAUTH_URL", "https://fynds.ai");
+    vi.stubEnv("APP_URL", "https://fynds.ai");
     expect(isTrustedOrigin(makeReq("http://fynds.ai"))).toBe(false);
   });
 
