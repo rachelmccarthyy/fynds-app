@@ -3,8 +3,25 @@ import { v4 as uuidv4 } from "uuid";
 import { CheckoutRequest, ItemStatusUpdate } from "@/lib/types";
 import { sessionStore } from "@/lib/purchase-agent/session-store";
 import { processPurchaseOrder } from "@/lib/purchase-agent";
+import { auth } from "@/lib/auth";
+import { getClientIp, checkRateLimit, isTrustedOrigin } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  if (!isTrustedOrigin(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const session = await auth();
+  const userId = session?.user?.email;
+  if (!userId) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip, 10, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const body: CheckoutRequest = await req.json();
 
@@ -25,7 +42,7 @@ export async function POST(req: NextRequest) {
       retailer: item.retailer,
     }));
 
-    sessionStore.create(sessionId, initialItems);
+    sessionStore.create(sessionId, initialItems, userId);
 
     // Start purchase agent in background (don't await)
     processPurchaseOrder(sessionId, body).catch((err) => {

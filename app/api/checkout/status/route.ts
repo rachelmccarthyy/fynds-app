@@ -1,36 +1,53 @@
 import { NextRequest } from "next/server";
 import { sessionStore } from "@/lib/purchase-agent/session-store";
+import { auth } from "@/lib/auth";
+import { getClientIp, checkRateLimit, isTrustedOrigin } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const sessionId = req.nextUrl.searchParams.get("sessionId");
+  if (!isTrustedOrigin(req)) {
+    return new Response("Forbidden", { status: 403 });
+  }
 
+  const authSession = await auth();
+  const userId = authSession?.user?.email;
+  if (!userId) {
+    return new Response("Authentication required", { status: 401 });
+  }
+
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip, 10, 60_000)) {
+    return new Response("Too many requests", { status: 429 });
+  }
+
+  const sessionId = req.nextUrl.searchParams.get("sessionId");
   if (!sessionId) {
     return new Response("Missing sessionId", { status: 400 });
   }
 
-  const session = sessionStore.get(sessionId);
-  if (!session) {
+  const checkoutSession = sessionStore.get(sessionId);
+  if (!checkoutSession) {
     return new Response("Session not found", { status: 404 });
+  }
+
+  if (!sessionStore.isOwner(sessionId, userId)) {
+    return new Response("Forbidden", { status: 403 });
   }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
-      // Send initial state
       controller.enqueue(
-        encoder.encode(`data: ${JSON.stringify(session)}\n\n`)
+        encoder.encode(`data: ${JSON.stringify(checkoutSession)}\n\n`)
       );
 
-      // Subscribe to updates
       const unsubscribe = sessionStore.subscribe(sessionId, (status) => {
         try {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(status)}\n\n`)
           );
 
-          // Close stream when order is done
           if (
             status.overallStatus === "completed" ||
             status.overallStatus === "failed" ||
@@ -42,7 +59,6 @@ export async function GET(req: NextRequest) {
               } catch {
                 // already closed
               }
-              // Clean up session after 5 minutes
               setTimeout(() => sessionStore.cleanup(sessionId), 5 * 60 * 1000);
             }, 1000);
           }
@@ -51,7 +67,6 @@ export async function GET(req: NextRequest) {
         }
       });
 
-      // Clean up on client disconnect
       req.signal.addEventListener("abort", () => {
         unsubscribe();
       });
