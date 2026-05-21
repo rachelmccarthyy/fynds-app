@@ -35,25 +35,39 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Restore existing session or create an anonymous one on first visit
-    supabase.auth.getSession().then(async ({ data: { session: existing } }) => {
-      if (existing) {
-        prevUserRef.current = existing.user;
-        setSession(existing);
-        setUser(existing.user);
-        console.log("[fynds:auth] session restored", {
-          user_id: existing.user.id,
-          is_anonymous: existing.user.is_anonymous,
-        });
-      } else {
-        const { data } = await supabase.auth.signInAnonymously();
-        prevUserRef.current = data.user ?? null;
-        setSession(data.session);
-        setUser(data.user ?? null);
-        console.log("[fynds:auth] anonymous session created", {
-          user_id: data.user?.id,
-        });
-      }
-    });
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session: existing }, error: sessionErr }) => {
+        if (sessionErr) {
+          console.error("[fynds:auth] getSession failed:", sessionErr.message, sessionErr);
+          return;
+        }
+        if (existing) {
+          prevUserRef.current = existing.user;
+          setSession(existing);
+          setUser(existing.user);
+          console.log("[fynds:auth] session restored", {
+            user_id: existing.user.id,
+            is_anonymous: existing.user.is_anonymous,
+          });
+        } else {
+          console.log("[fynds:auth] no session — calling signInAnonymously...");
+          const { data, error: anonErr } = await supabase.auth.signInAnonymously();
+          if (anonErr) {
+            console.error("[fynds:auth] signInAnonymously failed:", anonErr.message, anonErr);
+            return;
+          }
+          prevUserRef.current = data.user ?? null;
+          setSession(data.session);
+          setUser(data.user ?? null);
+          console.log("[fynds:auth] anonymous session created", {
+            user_id: data.user?.id,
+          });
+        }
+      })
+      .catch((err) =>
+        console.error("[fynds:auth] unexpected auth init error:", err)
+      );
 
     const {
       data: { subscription },
