@@ -150,8 +150,9 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const handleSignOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    // A new anonymous session is created on the next getSession() call (next mount/reload)
+    // scope: 'local' clears the local session only — no server round-trip that can fail.
+    // Multi-device sign-out (scope: 'global') requires a reliable server call; deferred to v0.5.3.
+    await supabase.auth.signOut({ scope: "local" });
   }, []);
 
   return (
