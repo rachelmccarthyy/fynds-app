@@ -40,11 +40,18 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         prevUserRef.current = existing.user;
         setSession(existing);
         setUser(existing.user);
+        console.log("[fynds:auth] session restored", {
+          user_id: existing.user.id,
+          is_anonymous: existing.user.is_anonymous,
+        });
       } else {
         const { data } = await supabase.auth.signInAnonymously();
         prevUserRef.current = data.user ?? null;
         setSession(data.session);
         setUser(data.user ?? null);
+        console.log("[fynds:auth] anonymous session created", {
+          user_id: data.user?.id,
+        });
       }
     });
 
@@ -56,15 +63,27 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       setUser(newSession?.user ?? null);
 
+      console.log("[fynds:auth] state change", {
+        event,
+        user_id: newSession?.user?.id ?? null,
+        is_anonymous: newSession?.user?.is_anonymous ?? null,
+        prev_user_id: prevUser?.id ?? null,
+        prev_is_anonymous: prevUser?.is_anonymous ?? null,
+      });
+
       // Anon → permanent transition: v0.5.3 will write to the events table.
+      // Note: after OAuth redirect the page reloads fresh, so prevUser is null here;
+      // identity_merge is detected by comparing user_id from before vs after the redirect
+      // (both should be the same UUID — that's the carry-over guarantee).
       if (
         event === "USER_UPDATED" &&
         prevUser?.is_anonymous === true &&
         newSession?.user?.is_anonymous === false
       ) {
-        console.log("[identity_merge]", {
+        console.log("[fynds:auth] identity_merge (same-session)", {
           anon_id: prevUser.id,
           user_id: newSession.user.id,
+          ids_match: prevUser.id === newSession.user.id,
         });
       }
     });
