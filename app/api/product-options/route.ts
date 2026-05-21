@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getClientIp, checkRateLimit, isTrustedOrigin } from "@/lib/rate-limit";
 
 const anthropic = new Anthropic();
 
 export async function POST(req: NextRequest) {
+  if (!isTrustedOrigin(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip, 30, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const { url, title, source } = await req.json();
     if (!url) {

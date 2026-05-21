@@ -8,6 +8,7 @@ import {
   OutfitPieceResult,
 } from "@/lib/types";
 import { buildSystemPrompt } from "@/lib/constants";
+import { getClientIp, checkRateLimit, isTrustedOrigin } from "@/lib/rate-limit";
 
 const anthropic = new Anthropic();
 
@@ -71,6 +72,15 @@ async function searchProducts(query: string): Promise<Product[]> {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isTrustedOrigin(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const ip = getClientIp(request);
+  if (!checkRateLimit(ip, 30, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const body: ChatRequest = await request.json();
     const { message, history, styleProfile } = body;

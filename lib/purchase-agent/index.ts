@@ -1,7 +1,10 @@
 import { CheckoutRequest, ItemStatusUpdate } from "../types";
 import { sessionStore } from "./session-store";
 
-const MOCK_MODE = process.env.CHECKOUT_MOCK === "true";
+// Real browser automation requires an explicit opt-in: CHECKOUT_REAL=true.
+// Absent, blank, "false", or any other value → mock. Fail-safe by design.
+// See PROJECT.md §6 v0.5.1 and §14 EC3.
+const REAL_MODE = process.env.CHECKOUT_REAL === "true";
 const MAX_RETRIES = 2;
 const RETAILER_DELAY = 2000;
 
@@ -214,8 +217,8 @@ export async function processPurchaseOrder(
   sessionId: string,
   request: CheckoutRequest
 ): Promise<void> {
-  if (MOCK_MODE) {
-    return mockPurchaseOrder(sessionId, request);
+  if (REAL_MODE) {
+    return realPurchaseOrder(sessionId, request);
   }
-  return realPurchaseOrder(sessionId, request);
+  return mockPurchaseOrder(sessionId, request);
 }

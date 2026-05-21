@@ -3,13 +3,18 @@ import { CheckoutStatus, ItemStatusUpdate } from "../types";
 
 class SessionStore {
   private sessions = new Map<string, CheckoutStatus>();
+  private owners = new Map<string, string>(); // sessionId → userId (email)
   private emitter = new EventEmitter();
 
   constructor() {
     this.emitter.setMaxListeners(100);
   }
 
-  create(sessionId: string, items: ItemStatusUpdate[]): CheckoutStatus {
+  create(
+    sessionId: string,
+    items: ItemStatusUpdate[],
+    userId: string
+  ): CheckoutStatus {
     const status: CheckoutStatus = {
       sessionId,
       overallStatus: "processing",
@@ -17,11 +22,17 @@ class SessionStore {
       startedAt: Date.now(),
     };
     this.sessions.set(sessionId, status);
+    this.owners.set(sessionId, userId);
     return status;
   }
 
   get(sessionId: string): CheckoutStatus | undefined {
     return this.sessions.get(sessionId);
+  }
+
+  /** Returns true only if userId matches the user who created this session. */
+  isOwner(sessionId: string, userId: string): boolean {
+    return this.owners.get(sessionId) === userId;
   }
 
   updateItem(sessionId: string, update: ItemStatusUpdate): void {
@@ -35,7 +46,6 @@ class SessionStore {
       session.items[idx] = update;
     }
 
-    // Check if all items are done
     const allDone = session.items.every(
       (i) =>
         i.status === "completed" ||
@@ -70,6 +80,7 @@ class SessionStore {
 
   cleanup(sessionId: string): void {
     this.sessions.delete(sessionId);
+    this.owners.delete(sessionId);
     this.emitter.removeAllListeners(`update:${sessionId}`);
   }
 }

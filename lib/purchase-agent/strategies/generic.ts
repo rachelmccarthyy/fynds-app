@@ -134,21 +134,19 @@ Customer shipping info:
 - Phone: ${shipping.phone}
 
 Payment: Card ending in ${maskedCard}, Exp ${payment.expiryMonth}/${payment.expiryYear}, Name: ${payment.nameOnCard}
-Card number: ${payment.cardNumber}
-CVV: ${payment.cvv}
+(Payment credentials are not provided to this agent. If you reach a payment form, immediately call report_result with success=false, needs_manual=true, and message="Payment step requires manual completion.")
 
 Steps to follow:
 1. Find and click "Add to Cart" or "Buy Now" button
 2. Navigate to checkout
 3. Fill in shipping information
-4. Fill in payment information
-5. Review and confirm the order
+4. Stop at payment — report needs_manual=true
 6. Use report_result to indicate success or failure
 
 Important:
 - If you see a CAPTCHA, report failure with needs_manual=true
 - If asked to sign in/register, try guest checkout first. If not available, report failure.
-- Never share the full card number in messages — only reference the last 4 digits.
+- Do not attempt to fill payment or card fields — report needs_manual=true at that step.
 - Work step by step. After each action, I'll show you the updated page.`;
 
       const messages: Anthropic.MessageParam[] = [];
