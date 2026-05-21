@@ -3,10 +3,17 @@ import { checkRateLimit, isTrustedOrigin, _clearStore } from "../lib/rate-limit"
 
 // Minimal request-like object — satisfies the RequestLike interface without
 // importing NextRequest, so this file runs in a plain Node environment.
-function makeReq(origin: string | null): { headers: { get: (k: string) => string | null } } {
+function makeReq(
+  origin: string | null,
+  host?: string | null
+): { headers: { get: (k: string) => string | null } } {
   return {
     headers: {
-      get: (key: string) => (key === "origin" ? origin : null),
+      get: (key: string) => {
+        if (key === "origin") return origin;
+        if (key === "host") return host ?? null;
+        return null;
+      },
     },
   };
 }
@@ -101,5 +108,19 @@ describe("isTrustedOrigin", () => {
   it("blocks an http variant when the allowlist entry is https", () => {
     vi.stubEnv("NEXTAUTH_URL", "https://fynds.ai");
     expect(isTrustedOrigin(makeReq("http://fynds.ai"))).toBe(false);
+  });
+
+  it("trusts a Vercel preview origin whose host matches the request Host header", () => {
+    const previewHost = "fynds-app-abc123-rachelmccarthyy.vercel.app";
+    expect(
+      isTrustedOrigin(makeReq(`https://${previewHost}`, previewHost))
+    ).toBe(true);
+  });
+
+  it("blocks a Vercel preview origin that does not match the request Host header", () => {
+    const actualHost = "fynds-app-abc123-rachelmccarthyy.vercel.app";
+    expect(
+      isTrustedOrigin(makeReq("https://fynds-app-evil.vercel.app", actualHost))
+    ).toBe(false);
   });
 });
