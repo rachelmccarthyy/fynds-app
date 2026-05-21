@@ -2,13 +2,13 @@
 
 import { useStore } from "@/lib/store-context";
 import { useCheckout } from "@/lib/checkout-context";
-import { useSession } from "next-auth/react";
+import { useSupabaseAuth } from "@/lib/supabase/auth-context";
 import Image from "next/image";
 
 export default function CartDrawer() {
   const { cart, isCartOpen, setIsCartOpen, removeFromCart } = useStore();
   const { startCheckout } = useCheckout();
-  const { data: session } = useSession();
+  const { isPermanentUser, signInWithGoogle } = useSupabaseAuth();
 
   if (!isCartOpen) return null;
 
@@ -159,7 +159,7 @@ export default function CartDrawer() {
         {/* Checkout button */}
         {cart.length > 0 && (
           <div className="px-5 py-4 border-t border-gray-100">
-            {session?.user ? (
+            {isPermanentUser ? (
               <button
                 onClick={startCheckout}
                 className="w-full py-3 bg-pink text-white text-sm font-semibold rounded-xl hover:bg-pink-dark transition-colors"
@@ -168,9 +168,12 @@ export default function CartDrawer() {
               </button>
             ) : (
               <p className="text-xs text-center text-muted">
-                <a href="/api/auth/signin" className="text-pink hover:underline font-medium">
+                <button
+                  onClick={signInWithGoogle}
+                  className="text-pink hover:underline font-medium"
+                >
                   Sign in
-                </a>{" "}
+                </button>{" "}
                 to checkout with Fynds
               </p>
             )}

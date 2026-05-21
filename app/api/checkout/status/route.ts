@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { sessionStore } from "@/lib/purchase-agent/session-store";
-import { auth } from "@/lib/auth";
+import { getRequestUser } from "@/lib/supabase/server";
 import { getClientIp, checkRateLimit, isTrustedOrigin } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const authSession = await auth();
-  const userId = authSession?.user?.email;
+  const reqUser = await getRequestUser(req); // checks Bearer header then ?token= param
+  const userId = reqUser?.id; // stable auth.users.id UUID
   if (!userId) {
     return new Response("Authentication required", { status: 401 });
   }

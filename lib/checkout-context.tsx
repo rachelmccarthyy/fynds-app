@@ -16,6 +16,7 @@ import {
   OrderItem,
 } from "./types";
 import { useStore } from "./store-context";
+import { useSupabaseAuth } from "@/lib/supabase/auth-context";
 
 interface CheckoutContextType {
   step: CheckoutStep;
@@ -44,6 +45,7 @@ function extractDomain(url: string): string {
 
 export function CheckoutProvider({ children }: { children: ReactNode }) {
   const { cart, setIsCartOpen } = useStore();
+  const { accessToken } = useSupabaseAuth();
   const [step, setStep] = useState<CheckoutStep>("cart_review");
   const [shipping, setShipping] = useState<ShippingAddress | null>(null);
   const [payment, setPaymentState] = useState<PaymentDetails | null>(null);
@@ -91,7 +93,10 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({ items, shipping, payment }),
       });
 
@@ -99,10 +104,12 @@ export function CheckoutProvider({ children }: { children: ReactNode }) {
 
       const { sessionId } = await res.json();
 
-      // Connect to SSE stream
-      const es = new EventSource(
-        `/api/checkout/status?sessionId=${sessionId}`
-      );
+      // Connect to SSE stream. EventSource doesn't support custom headers,
+      // so the token is passed as a query param for server-side verification.
+      const sseUrl = `/api/checkout/status?sessionId=${sessionId}${
+        accessToken ? `&token=${encodeURIComponent(accessToken)}` : ""
+      }`;
+      const es = new EventSource(sseUrl);
       eventSourceRef.current = es;
 
       es.onmessage = (event) => {

@@ -8,7 +8,7 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { useSession } from "next-auth/react";
+import { useSupabaseAuth } from "@/lib/supabase/auth-context";
 import { Product, ProductOptions, SavedProduct, StyleProfile } from "./types";
 
 const ONE_HOUR = 60 * 60 * 1000;
@@ -51,8 +51,8 @@ function pruneExpired(items: SavedProduct[]): SavedProduct[] {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const { data: session } = useSession();
-  const isSignedIn = !!session?.user;
+  const { isPermanentUser } = useSupabaseAuth();
+  const isSignedIn = isPermanentUser; // only skip pruning for Google-linked users
 
   const [cart, setCart] = useState<SavedProduct[]>([]);
   const [favorites, setFavorites] = useState<SavedProduct[]>([]);

@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { CheckoutRequest, ItemStatusUpdate } from "@/lib/types";
 import { sessionStore } from "@/lib/purchase-agent/session-store";
 import { processPurchaseOrder } from "@/lib/purchase-agent";
-import { auth } from "@/lib/auth";
+import { getRequestUser } from "@/lib/supabase/server";
 import { getClientIp, checkRateLimit, isTrustedOrigin } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -11,8 +11,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const session = await auth();
-  const userId = session?.user?.email;
+  const reqUser = await getRequestUser(req);
+  const userId = reqUser?.id; // stable auth.users.id UUID (anon or permanent)
   if (!userId) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }

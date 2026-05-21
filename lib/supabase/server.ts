@@ -11,15 +11,23 @@ const supabaseAdmin = createClient(
 );
 
 /**
- * Extracts and verifies the Supabase access token from the Authorization header.
+ * Extracts and verifies the Supabase access token from an API request.
+ * Checks Authorization: Bearer <token> header first, then ?token= query param
+ * (EventSource/SSE connections cannot set custom headers).
  * Returns the authenticated user (anon or permanent) or null.
  * Replaces NextAuth's auth() in API route guards.
  */
 export async function getRequestUser(
-  req: NextRequest | { headers: { get(key: string): string | null } }
+  req: NextRequest
 ): Promise<{ id: string; email?: string } | null> {
   const authHeader = req.headers.get("authorization");
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  let token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  // SSE fallback: EventSource can't set headers, so the client passes ?token=
+  if (!token) {
+    token = req.nextUrl.searchParams.get("token");
+  }
+
   if (!token) return null;
 
   const {
