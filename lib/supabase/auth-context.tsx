@@ -34,6 +34,27 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const prevUserRef = useRef<User | null>(null);
 
   useEffect(() => {
+    // Detect identity_already_exists from a linkIdentity redirect.
+    // This happens when a returning user (who previously signed in with Google, then signed out)
+    // clicks "Sign in" again: the new anon session tries linkIdentity, Supabase rejects it and
+    // redirects back with ?error_code=identity_already_exists. We strip the error params and
+    // retry with signInWithOAuth so they sign into their existing permanent account.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("error_code") === "identity_already_exists") {
+        url.searchParams.delete("error");
+        url.searchParams.delete("error_code");
+        url.searchParams.delete("error_description");
+        window.history.replaceState({}, "", url.toString());
+        console.log("[fynds:auth] identity_already_exists — retrying as returning user via signInWithOAuth");
+        supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: `${url.origin}${url.pathname}` },
+        });
+        return; // skip normal session init; OAuth redirect takes over
+      }
+    }
+
     // Restore existing session or create an anonymous one on first visit
     supabase.auth
       .getSession()
