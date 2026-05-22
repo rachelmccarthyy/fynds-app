@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const user = await getRequestUser(req);
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin()
     .from("profiles")
     .select("*")
     .eq("user_id", user.id)
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   const body: StyleProfile = await req.json();
 
-  const { error } = await supabaseAdmin.from("profiles").upsert({
+  const { error } = await supabaseAdmin().from("profiles").upsert({
     user_id: user.id,
     aesthetic: body.aesthetic || null,
     budget_range: body.budgetRange || null,
@@ -60,7 +60,7 @@ export async function DELETE(req: NextRequest) {
   const user = await getRequestUser(req);
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  const { error } = await supabaseAdmin
+  const { error } = await supabaseAdmin()
     .from("profiles")
     .delete()
     .eq("user_id", user.id);

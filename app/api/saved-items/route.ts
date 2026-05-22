@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const user = await getRequestUser(req);
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin()
     .from("saved_items")
     .select("*")
     .eq("user_id", user.id)
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   const productKey = computeProductKey(body.product);
 
   // Upsert product dimension first (FK required; only service role can write products)
-  const { error: productErr } = await supabaseAdmin.from("products").upsert(
+  const { error: productErr } = await supabaseAdmin().from("products").upsert(
     {
       product_key: productKey,
       title: body.product.title,
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
   if (productErr) return NextResponse.json({ error: productErr.message }, { status: 500 });
 
   // Upsert saved item (update snapshot + options if already saved)
-  const { error: itemErr } = await supabaseAdmin.from("saved_items").upsert(
+  const { error: itemErr } = await supabaseAdmin().from("saved_items").upsert(
     {
       user_id: user.id,
       kind: body.kind,
@@ -86,7 +86,7 @@ export async function DELETE(req: NextRequest) {
   const body: { kind: "favorite" | "cart"; productKey?: string; all?: boolean } =
     await req.json();
 
-  let query = supabaseAdmin
+  let query = supabaseAdmin()
     .from("saved_items")
     .delete()
     .eq("user_id", user.id)
