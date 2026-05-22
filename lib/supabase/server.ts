@@ -4,11 +4,21 @@ import type { NextRequest } from "next/server";
 
 // Server-only admin client — service role key bypasses RLS.
 // Never import this in client components or expose to the browser.
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  // Fail loudly at startup so the missing var is obvious in logs,
+  // rather than a cryptic "supabaseUrl is required" throw from the SDK.
+  throw new Error(
+    "[fynds:supabase] NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set as server env vars. " +
+    "Add them in Vercel → Project Settings → Environment Variables (Production + Preview)."
+  );
+}
+
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
 
 /**
  * Extracts and verifies the Supabase access token from an API request.
