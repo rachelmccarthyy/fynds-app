@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getClientIp, checkRateLimit, isTrustedOrigin } from "@/lib/rate-limit";
+import { trackServer } from "@/lib/analytics/server-track";
 
 const anthropic = new Anthropic();
 
@@ -83,7 +84,18 @@ Important rules:
     } catch {
       return NextResponse.json({ sizes: [], colors: [], other: [] });
     }
-  } catch {
+  } catch (error) {
+    after(async () => {
+      try {
+        await trackServer({
+          event_type: "error_event",
+          properties: {
+            scope: "product-options",
+            class: error instanceof Error ? error.constructor.name : "unknown",
+          },
+        });
+      } catch { /* never surface a logging failure */ }
+    });
     return NextResponse.json({ sizes: [], colors: [], other: [] });
   }
 }

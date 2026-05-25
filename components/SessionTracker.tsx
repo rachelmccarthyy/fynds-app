@@ -3,7 +3,7 @@
 import { Component, useEffect, useRef, type ReactNode } from "react";
 import { useTrack } from "@/lib/analytics/use-track";
 import { getSessionId, rotateSession } from "@/lib/analytics/session";
-import { flushNow } from "@/lib/analytics/track";
+import { flushNow, track } from "@/lib/analytics/track";
 
 // Idle boundary: 30 minutes of no interaction ends the session and rotates the id.
 // A 35-min silent read gets split into two sessions — deliberate tradeoff, not a
@@ -91,6 +91,13 @@ export class AnalyticsErrorBoundary extends Component<
   }
   componentDidCatch(err: Error) {
     console.error("[fynds:analytics] error boundary caught:", err);
+    track({
+      event_type: "error_event",
+      properties: {
+        scope: "analytics",
+        class: err.name || "Error",
+      },
+    });
   }
   render() {
     return this.state.hasError ? null : this.props.children;

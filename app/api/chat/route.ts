@@ -320,6 +320,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(chatResponse);
   } catch (error) {
     console.error("Chat API error:", error);
+    after(async () => {
+      try {
+        await trackServer({
+          event_type: "error_event",
+          properties: {
+            scope: "chat",
+            class: error instanceof Error ? error.constructor.name : "unknown",
+          },
+        });
+      } catch { /* never surface a logging failure */ }
+    });
     return NextResponse.json(
       { error: "Something went wrong. Please try again." },
       { status: 500 }

@@ -12,40 +12,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  let body: Record<string, unknown>;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
-  const token = typeof body.token === "string" ? body.token : null;
-  if (!token) {
-    return NextResponse.json({ error: "token required" }, { status: 400 });
-  }
+    const token = typeof body.token === "string" ? body.token : null;
+    if (!token) {
+      return NextResponse.json({ error: "token required" }, { status: 400 });
+    }
 
-  // Verify token — must resolve to a permanent (non-anonymous) user.
-  // The merge is only real if the user successfully linked a Google identity.
-  const {
-    data: { user },
-    error,
-  } = await supabaseAdmin().auth.getUser(token);
+    const {
+      data: { user },
+      error,
+    } = await supabaseAdmin().auth.getUser(token);
 
-  if (error || !user || user.is_anonymous) {
-    return NextResponse.json({ error: "Invalid or anonymous user" }, { status: 401 });
-  }
+    if (error || !user || user.is_anonymous) {
+      return NextResponse.json({ error: "Invalid or anonymous user" }, { status: 401 });
+    }
 
-  await trackServer({
-    event_type: "identity_merge",
-    user_id: user.id,
-    anon_id:    typeof body.anon_id === "string"    ? body.anon_id    : null,
-    session_id: typeof body.session_id === "string"  ? body.session_id : null,
-    platform:   typeof body.platform === "string"    ? body.platform   : null,
-    properties: {
-      anon_id: typeof body.anon_id === "string" ? body.anon_id : null,
+    await trackServer({
+      event_type: "identity_merge",
       user_id: user.id,
-    },
-  });
+      anon_id:    typeof body.anon_id === "string"    ? body.anon_id    : null,
+      session_id: typeof body.session_id === "string"  ? body.session_id : null,
+      platform:   typeof body.platform === "string"    ? body.platform   : null,
+      properties: {
+        anon_id: typeof body.anon_id === "string" ? body.anon_id : null,
+        user_id: user.id,
+      },
+    });
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[fynds:identity-merge] failed:", err);
+    try {
+      await trackServer({
+        event_type: "error_event",
+        properties: {
+          scope: "identity-merge",
+          class: err instanceof Error ? err.constructor.name : "unknown",
+        },
+      });
+    } catch { /* never surface a logging failure */ }
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
 }
