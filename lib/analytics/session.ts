@@ -45,6 +45,19 @@ export function getSessionId(): string {
   }
 }
 
+/** Rotate session: clear the old id so getSessionId() generates a fresh UUID
+ *  in the shared sessionStorage slot. All callers (tracker, impressions, saves)
+ *  read from the same slot — rotation is visible to everyone. */
+export function rotateSession(): string {
+  if (typeof window === "undefined") return "server";
+  try {
+    sessionStorage.removeItem(SESSION_ID_KEY);
+    return getSessionId();
+  } catch {
+    return generateUUID();
+  }
+}
+
 /** Pointer-based platform detection — unaffected by window resize unlike innerWidth. */
 export function getPlatform(): "mobile_web" | "desktop_web" {
   if (typeof window === "undefined") return "desktop_web";

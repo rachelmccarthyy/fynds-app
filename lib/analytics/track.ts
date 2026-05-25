@@ -112,3 +112,10 @@ export function track(payload: TrackPayload): void {
   buffer.push(buildEnvelope(payload));
   if (buffer.length >= FLUSH_SIZE) flush(false);
 }
+
+/** Immediately flush the buffer via fetch (not beacon). Used by SessionTracker
+ *  to transmit session_end before rotating the session id — ensures the event
+ *  isn't stuck in the buffer with a stale ts if the tab closes during idle. */
+export function flushNow(): void {
+  flush(false);
+}
