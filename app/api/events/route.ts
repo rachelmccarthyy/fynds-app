@@ -48,16 +48,16 @@ function validateEvent(raw: unknown): ValidationResult {
   return {
     valid: true,
     data: {
-      event_type: e.event_type,
-      session_id: e.session_id,
-      platform: e.platform,
-      anon_id:       typeof e.anon_id === "string"      ? e.anon_id       : null,
-      app_version:   typeof e.app_version === "string"  ? e.app_version   : null,
-      surface:       typeof e.surface === "string"       ? e.surface       : null,
+      event_type:     e.event_type,
+      session_id:     e.session_id,
+      platform:       e.platform,
+      anon_id:        typeof e.anon_id === "string"       ? e.anon_id        : null,
+      app_version:    typeof e.app_version === "string"   ? e.app_version    : null,
+      surface:        typeof e.surface === "string"        ? e.surface        : null,
       schema_version: typeof e.schema_version === "number" ? e.schema_version : 1,
-      properties:    e.properties && typeof e.properties === "object" && !Array.isArray(e.properties)
-                       ? e.properties
-                       : {},
+      properties:     e.properties && typeof e.properties === "object" && !Array.isArray(e.properties)
+                        ? e.properties
+                        : {},
       // ts intentionally absent — DB default now() is the server stamp; client value ignored
     },
   };
@@ -76,33 +76,46 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  let body: unknown;
+  let parsed: unknown;
   try {
-    body = await request.json();
+    parsed = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (!Array.isArray(body)) {
-    return NextResponse.json({ error: "Body must be an array of events" }, { status: 400 });
+  // Both transports (fetch and sendBeacon) use { events: EventPayload[], token?: string }.
+  // Fetch path: token absent, identity from Authorization: Bearer header.
+  // Beacon path: token in body, can't set headers.
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Body must be { events: [...], token?: string }" }, { status: 400 });
   }
-  if (body.length === 0) {
+  const wrapper = parsed as Record<string, unknown>;
+
+  // Strip order: extract token first, before events touches anything. Token never reaches a row.
+  const bodyToken = typeof wrapper.token === "string" ? wrapper.token : null;
+  const events = wrapper.events;
+
+  if (!Array.isArray(events)) {
+    return NextResponse.json({ error: "events must be an array" }, { status: 400 });
+  }
+  if (events.length === 0) {
     return NextResponse.json({ ok: true, inserted: 0 });
   }
-  if (body.length > 100) {
-    return NextResponse.json(
-      { error: "Batch exceeds maximum of 100 events" },
-      { status: 400 }
-    );
+  if (events.length > 100) {
+    return NextResponse.json({ error: "Batch exceeds maximum of 100 events" }, { status: 400 });
   }
 
-  // Derive user_id from Bearer token. Missing or invalid token → null; insert still proceeds.
-  // Clients must never supply user_id directly — it is only set here from a verified token.
+  // Derive user_id: Bearer header (fetch path) takes precedence; body.token (beacon path) fallback.
+  // Both paths verify via getUser() — never trust the raw value.
+  // Missing/invalid token → user_id null; insert still proceeds (anonymous sessions accepted).
   let userId: string | null = null;
   const authHeader = request.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7);
-    const { data: { user } } = await supabaseAdmin().auth.getUser(token);
+  const rawToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : bodyToken;
+
+  if (rawToken) {
+    const { data: { user } } = await supabaseAdmin().auth.getUser(rawToken);
     if (user) userId = user.id;
   }
 
@@ -111,12 +124,12 @@ export async function POST(request: NextRequest) {
   // the client can't see the 400 or retry. One console.error per drop keeps bugs visible.
   // TODO: aggregate dropped-event counter by type when Upstash lands for a metrics signal.
   const rows: Record<string, unknown>[] = [];
-  for (let i = 0; i < body.length; i++) {
-    const result = validateEvent(body[i]);
+  for (let i = 0; i < events.length; i++) {
+    const result = validateEvent(events[i]);
     if (!result.valid) {
       console.error(
         `[fynds:events] dropped event[${i}]: ${result.reason}`,
-        JSON.stringify(body[i]).slice(0, 200)
+        JSON.stringify(events[i]).slice(0, 200)
       );
       continue;
     }
@@ -124,7 +137,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (rows.length === 0) {
-    return NextResponse.json({ ok: true, inserted: 0, dropped: body.length });
+    return NextResponse.json({ ok: true, inserted: 0, dropped: events.length });
   }
 
   const { error } = await supabaseAdmin().from("events").insert(rows);
@@ -137,6 +150,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     inserted: rows.length,
-    dropped: body.length - rows.length,
+    dropped: events.length - rows.length,
   });
 }
