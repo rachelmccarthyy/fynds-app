@@ -3,10 +3,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Product } from "@/lib/types";
 import { useStore } from "@/lib/store-context";
+import { useTrack } from "@/lib/analytics/use-track";
 import Image from "next/image";
 
 interface ProductCardProps {
   product: Product;
+  queryId?: string;
+  position?: number;
 }
 
 interface VariantOption {
@@ -18,6 +21,11 @@ interface ProductOptions {
   sizes: string[];
   colors: string[];
   other: VariantOption[];
+}
+
+function parsePrice(price: string): number | null {
+  const n = parseFloat(price.replace(/[^0-9.]/g, ""));
+  return isNaN(n) ? null : n;
 }
 
 function StarRating({ rating }: { rating: number }) {
@@ -54,9 +62,10 @@ function formatRatingCount(count: number): string {
   return count.toString();
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, queryId, position }: ProductCardProps) {
   const { addToCart, removeFromCart, toggleFavorite, isInCart, isFavorite } =
     useStore();
+  const trackEvent = useTrack();
 
   const inCart = isInCart(product);
   const favorited = isFavorite(product);
@@ -66,9 +75,9 @@ export default function ProductCard({ product }: ProductCardProps) {
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedOther, setSelectedOther] = useState<Record<string, string>>({});
+  const [dismissed, setDismissed] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  // Close popover on outside click
   useEffect(() => {
     if (!showOptions) return;
     const handleClick = (e: MouseEvent) => {
@@ -123,6 +132,48 @@ export default function ProductCard({ product }: ProductCardProps) {
     setProductOptions(null);
   };
 
+  const handleToggleFavorite = () => {
+    const wasFavorited = favorited;
+    toggleFavorite(product);
+    trackEvent(
+      wasFavorited ? "product_unsave" : "product_save",
+      {
+        product_key: product.product_key ?? null,
+        query_id: queryId ?? null,
+        position: position ?? null,
+      },
+      "grid"
+    );
+  };
+
+  const handleBuyClick = () => {
+    trackEvent(
+      "buy_clicked",
+      {
+        product_key: product.product_key ?? null,
+        retailer: product.source,
+        price_at_event: parsePrice(product.price),
+        has_affiliate: false,
+        query_id: queryId ?? null,
+      },
+      "grid"
+    );
+  };
+
+  const handleDismiss = () => {
+    trackEvent(
+      "product_dismiss",
+      {
+        product_key: product.product_key ?? null,
+        query_id: queryId ?? null,
+      },
+      "grid"
+    );
+    setDismissed(true);
+  };
+
+  if (dismissed) return null;
+
   const hasOptions =
     productOptions &&
     (productOptions.sizes.length > 0 ||
@@ -137,6 +188,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         target="_blank"
         rel="noopener noreferrer"
         className="block relative aspect-square bg-surface"
+        onClick={handleBuyClick}
       >
         {product.imageUrl ? (
           <Image
@@ -153,11 +205,11 @@ export default function ProductCard({ product }: ProductCardProps) {
         )}
       </a>
 
-      {/* Heart button */}
+      {/* Heart button — top right */}
       <button
         onClick={(e) => {
           e.stopPropagation();
-          toggleFavorite(product);
+          handleToggleFavorite();
         }}
         className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform z-10"
         aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
@@ -171,6 +223,20 @@ export default function ProductCard({ product }: ProductCardProps) {
           strokeWidth="2"
         >
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </svg>
+      </button>
+
+      {/* Dismiss button — top left */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleDismiss();
+        }}
+        className="absolute top-2 left-2 w-6 h-6 flex items-center justify-center rounded-full bg-white/80 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        aria-label="Not for me"
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round">
+          <path d="M18 6L6 18M6 6l12 12" />
         </svg>
       </button>
 

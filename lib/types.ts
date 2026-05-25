@@ -4,6 +4,8 @@ export interface Message {
   content: string;
   products?: Product[];
   outfitPieces?: OutfitPieceResult[];
+  queryId?: string;
+  resultSetId?: string;
 }
 
 export interface Product {
