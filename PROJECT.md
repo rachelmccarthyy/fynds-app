@@ -258,8 +258,8 @@ Log behavior to *serve* the user (a sharper stylist), be transparent that Fynds 
 | v0.2 filtering | ✅ shipped | 74e7e3c | n/a | baseline |
 | v0.3 checkout system | ⚠ shipped, untested/risky | 2559fae | n/a | drives 0.5.1 |
 | v0.5.1 security triage | ✅ shipped | — | ✅ functional | stop-ship; in-memory rate limiter is near-term tech debt (replace before public launch, not deferred to v0.5.5); railway.json deleted — host is Vercel; **manual deploy step**: confirm CHECKOUT_REAL is absent in Vercel env dashboard |
-| v0.5.2 backend + identity | ⬜ planned | — | — | |
-| v0.5.3 instrumentation | ⬜ planned | — | — | |
+| v0.5.2 backend + identity | ✅ shipped | PR #2 | ✅ functional (§16) | Supabase Auth anon→Google link, profiles/saved_items/products with RLS, localStorage as cache; **BUG (fix before public launch):** returning user whose anon session expired/cleared gets a fresh anon user → `linkIdentity` fails with `identity_already_exists` → `signInWithOAuth` fallback orphans the anon user's saves/cart/profile with zero carry-over; blast radius is every returning user not on their original anon session (new device, cleared storage, session expiry) — same priority tier as the in-memory rate limiter; §13's "no stitching needed" claim is false for this path — stitching/carry-over required |
+| v0.5.3 instrumentation | ✅ shipped | PR #3 | evaluable, pending traffic | EC1 verified (21 rows, 10 event types, complete envelopes); EC2 partial (parse-success, latency p75, Anthropic cost/session computable — Serper cost_usd null, outfit engagement not computable); EC3 verified (position-join confirmed, product_key 8 vitest assertions); identity_merge verified live incl. orphaned_anon_user_id audit trail; §8 gate evaluation pending ~hundreds of intent sessions; spec deviations: beacon body.token attribution, 30-min idle session boundary + rotation |
 | v0.5.4 mobile-first | ⬜ planned | — | — | |
 | v0.5.5 fulfillment V1 | ⬜ planned | — | — | |
 
@@ -276,7 +276,9 @@ Log behavior to *serve* the user (a sharper stylist), be transparent that Fynds 
 ---
 
 ## 13. v0.5.2 data model (Supabase / Postgres)
-Runnable as a single migration. Identity is handled by **Supabase Auth** (`auth.users`): anonymous sign-in on first visit, then `linkIdentity(Google)` on sign-in. Because `user_id` is the same `auth.users.id` before and after linking, no stitching job or re-keying is needed — profile/cart/favorites keyed on `user_id` carry over automatically.
+Runnable as a single migration. Identity is handled by **Supabase Auth** (`auth.users`): anonymous sign-in on first visit, then `linkIdentity(Google)` on sign-in. On the **happy path** (first-time Google link), `user_id` is the same `auth.users.id` before and after linking — no stitching needed, data carries over automatically.
+
+> **⚠ Known bug (fix before public launch):** When a returning user signs in and `linkIdentity` fails with `identity_already_exists` (Google identity already linked to their permanent account — happens on new device, cleared storage, or expired anon session), the fallback `signInWithOAuth` signs into the existing permanent account but **orphans the anonymous user's saves/cart/profile** with zero carry-over. Stitching/re-keying IS required on this path: copy the orphaned anon user's `profiles`/`saved_items` rows to the permanent `user_id` before or after the redirect. The `identity_merge` event records `orphaned_anon_user_id` in properties for audit/recovery. Blast radius: every returning user not on their original anon session. Same priority tier as the in-memory rate limiter — harmless at zero traffic, actively harmful with real users.
 
 ```sql
 -- updated_at helper
