@@ -14,8 +14,10 @@ import { supabase } from "@/lib/supabase/client";
 import { getAnonId, getSessionId, getPlatform } from "@/lib/analytics/session";
 
 const WAS_ANON_KEY = "fynds-was-anon";
+const ORPHANED_ANON_UID_KEY = "fynds-orphaned-anon-uid";
 
-function emitIdentityMerge(token: string): void {
+function emitIdentityMerge(token: string, orphanedAnonUserId?: string | null): void {
+  const storedOrphan = orphanedAnonUserId ?? localStorage.getItem(ORPHANED_ANON_UID_KEY);
   fetch("/api/auth/identity-merge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -24,9 +26,11 @@ function emitIdentityMerge(token: string): void {
       anon_id:    getAnonId(),
       session_id: getSessionId(),
       platform:   getPlatform(),
+      orphaned_anon_user_id: storedOrphan ?? null,
     }),
-  }).catch(() => {}); // fire-and-forget; failure logged server-side
+  }).catch(() => {});
   localStorage.removeItem(WAS_ANON_KEY);
+  localStorage.removeItem(ORPHANED_ANON_UID_KEY);
 }
 
 interface SupabaseAuthState {
@@ -136,7 +140,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         newSession?.user?.is_anonymous === false &&
         newSession?.access_token
       ) {
-        emitIdentityMerge(newSession.access_token);
+        emitIdentityMerge(newSession.access_token, prevUser.id);
       }
 
       // Post-redirect merge: page reloaded after OAuth, prevUser is null,
@@ -164,7 +168,10 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         : undefined;
 
     if (user?.is_anonymous) {
-      // Link Google to the existing anonymous user — user_id is preserved, no data migration
+      // Store the anon user_id before redirect — if linkIdentity fails with
+      // identity_already_exists, this is the orphaned user whose saves are lost.
+      // Recoverable via identity_merge.orphaned_anon_user_id after the auth fix.
+      localStorage.setItem(ORPHANED_ANON_UID_KEY, user.id);
       await supabase.auth.linkIdentity({
         provider: "google",
         options: { redirectTo },

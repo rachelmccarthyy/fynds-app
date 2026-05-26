@@ -34,6 +34,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid or anonymous user" }, { status: 401 });
     }
 
+    const orphanedAnonUserId = typeof body.orphaned_anon_user_id === "string"
+      ? body.orphaned_anon_user_id
+      : null;
+
     await trackServer({
       event_type: "identity_merge",
       user_id: user.id,
@@ -43,6 +47,10 @@ export async function POST(request: NextRequest) {
       properties: {
         anon_id: typeof body.anon_id === "string" ? body.anon_id : null,
         user_id: user.id,
+        // When non-null and != user_id, this user's saves/cart/profile were
+        // orphaned by the identity_already_exists fallback. Audit trail for
+        // the v0.5.2 carry-over fix — query: orphaned_anon_user_id != user_id.
+        orphaned_anon_user_id: orphanedAnonUserId,
       },
     });
 
