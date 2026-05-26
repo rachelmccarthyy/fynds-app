@@ -11,6 +11,27 @@ import {
 } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
+import { getAnonId, getSessionId, getPlatform } from "@/lib/analytics/session";
+
+const WAS_ANON_KEY = "fynds-was-anon";
+const ORPHANED_ANON_UID_KEY = "fynds-orphaned-anon-uid";
+
+function emitIdentityMerge(token: string, orphanedAnonUserId?: string | null): void {
+  const storedOrphan = orphanedAnonUserId ?? localStorage.getItem(ORPHANED_ANON_UID_KEY);
+  fetch("/api/auth/identity-merge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token,
+      anon_id:    getAnonId(),
+      session_id: getSessionId(),
+      platform:   getPlatform(),
+      orphaned_anon_user_id: storedOrphan ?? null,
+    }),
+  }).catch(() => {});
+  localStorage.removeItem(WAS_ANON_KEY);
+  localStorage.removeItem(ORPHANED_ANON_UID_KEY);
+}
 
 interface SupabaseAuthState {
   user: User | null;
@@ -67,6 +88,9 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
           prevUserRef.current = existing.user;
           setSession(existing);
           setUser(existing.user);
+          if (existing.user.is_anonymous) {
+            localStorage.setItem(WAS_ANON_KEY, "true");
+          }
           console.log("[fynds:auth] session restored", {
             user_id: existing.user.id,
             is_anonymous: existing.user.is_anonymous,
@@ -81,6 +105,9 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
           prevUserRef.current = data.user ?? null;
           setSession(data.session);
           setUser(data.user ?? null);
+          if (data.user) {
+            localStorage.setItem(WAS_ANON_KEY, "true");
+          }
           console.log("[fynds:auth] anonymous session created", {
             user_id: data.user?.id,
           });
@@ -106,20 +133,26 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         prev_is_anonymous: prevUser?.is_anonymous ?? null,
       });
 
-      // Anon → permanent transition: v0.5.3 will write to the events table.
-      // Note: after OAuth redirect the page reloads fresh, so prevUser is null here;
-      // identity_merge is detected by comparing user_id from before vs after the redirect
-      // (both should be the same UUID — that's the carry-over guarantee).
+      // Same-session merge: anon → permanent in one tab without a page reload
       if (
         event === "USER_UPDATED" &&
         prevUser?.is_anonymous === true &&
-        newSession?.user?.is_anonymous === false
+        newSession?.user?.is_anonymous === false &&
+        newSession?.access_token
       ) {
-        console.log("[fynds:auth] identity_merge (same-session)", {
-          anon_id: prevUser.id,
-          user_id: newSession.user.id,
-          ids_match: prevUser.id === newSession.user.id,
-        });
+        emitIdentityMerge(newSession.access_token, prevUser.id);
+      }
+
+      // Post-redirect merge: page reloaded after OAuth, prevUser is null,
+      // but fynds-was-anon was set before the redirect.
+      // Ordinary sign-ins (no prior anon session) don't have the flag.
+      if (
+        event === "SIGNED_IN" &&
+        newSession?.user?.is_anonymous === false &&
+        newSession?.access_token &&
+        localStorage.getItem(WAS_ANON_KEY) === "true"
+      ) {
+        emitIdentityMerge(newSession.access_token);
       }
     });
 
@@ -135,7 +168,10 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         : undefined;
 
     if (user?.is_anonymous) {
-      // Link Google to the existing anonymous user — user_id is preserved, no data migration
+      // Store the anon user_id before redirect — if linkIdentity fails with
+      // identity_already_exists, this is the orphaned user whose saves are lost.
+      // Recoverable via identity_merge.orphaned_anon_user_id after the auth fix.
+      localStorage.setItem(ORPHANED_ANON_UID_KEY, user.id);
       await supabase.auth.linkIdentity({
         provider: "google",
         options: { redirectTo },

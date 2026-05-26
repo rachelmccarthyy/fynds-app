@@ -4,6 +4,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Message, Product, OutfitPieceResult } from "@/lib/types";
 import { WELCOME_MESSAGE } from "@/lib/constants";
 import { useStore } from "@/lib/store-context";
+import { useSupabaseAuth } from "@/lib/supabase/auth-context";
+import { useTrack } from "@/lib/analytics/use-track";
+import { getAnonId, getSessionId, getPlatform } from "@/lib/analytics/session";
 import MessageBubble from "./MessageBubble";
 import ProductGrid from "./ProductGrid";
 import OutfitView from "./OutfitView";
@@ -18,6 +21,8 @@ import { DesktopSidebar, MobileFilterChips } from "./FilterSidebar";
 
 export default function ChatInterface() {
   const { styleProfile } = useStore();
+  const { accessToken } = useSupabaseAuth();
+  const trackEvent = useTrack();
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -33,6 +38,8 @@ export default function ChatInterface() {
   const [latestOutfitPieces, setLatestOutfitPieces] = useState<
     OutfitPieceResult[]
   >([]);
+  const [latestQueryId, setLatestQueryId] = useState<string | undefined>();
+  const [latestResultSetId, setLatestResultSetId] = useState<string | undefined>();
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -43,9 +50,11 @@ export default function ChatInterface() {
     scrollToBottom();
   }, [messages, isLoading, scrollToBottom]);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, entryPoint: string = "free_text") => {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
+
+    const queryId = crypto.randomUUID();
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -57,24 +66,38 @@ export default function ChatInterface() {
     setInput("");
     setIsLoading(true);
 
+    trackEvent("query_submitted", {
+      query_id: queryId,
+      raw_text: trimmed,
+      entry_point: entryPoint,
+    });
+
     try {
       const history = messages
         .filter((m) => m.id !== "welcome")
         .map((m) => ({ role: m.role, content: m.content }));
 
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           message: trimmed,
           history,
           styleProfile,
+          query_id: queryId,
+          session_id: getSessionId(),
+          platform: getPlatform(),
+          anon_id: getAnonId(),
         }),
       });
 
       if (!res.ok) throw new Error("Failed to fetch");
 
       const data = await res.json();
+      const resultSetId = crypto.randomUUID();
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -82,16 +105,24 @@ export default function ChatInterface() {
         content: data.message,
         products: data.products,
         outfitPieces: data.outfitPieces,
+        queryId,
+        resultSetId,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
 
+      // All three set in the same synchronous block — React 18 batches these
+      // into one render, so there's no intermediate frame with mismatched ids.
       if (data.outfitPieces && data.outfitPieces.length > 0) {
         setLatestOutfitPieces(data.outfitPieces);
         setLatestProducts([]);
+        setLatestQueryId(queryId);
+        setLatestResultSetId(resultSetId);
       } else if (data.products && data.products.length > 0) {
         setLatestProducts(data.products);
         setLatestOutfitPieces([]);
+        setLatestQueryId(queryId);
+        setLatestResultSetId(resultSetId);
       }
     } catch {
       const errorMessage: Message = {
@@ -106,7 +137,7 @@ export default function ChatInterface() {
   };
 
   const handleSuggestedQuery = (query: string) => {
-    sendMessage(query);
+    sendMessage(query, "chip");
   };
 
   const hasProducts = latestProducts.length > 0;
@@ -145,13 +176,22 @@ export default function ChatInterface() {
                   {/* Inline products on mobile */}
                   {message.products && message.products.length > 0 && (
                     <div className="mt-3 md:hidden">
-                      <ProductGrid products={message.products} />
+                      <ProductGrid
+                        products={message.products}
+                        queryId={message.queryId}
+                        resultSetId={message.resultSetId}
+                        isOutfit={false}
+                      />
                     </div>
                   )}
                   {/* Inline outfit on mobile */}
                   {message.outfitPieces && message.outfitPieces.length > 0 && (
                     <div className="mt-3 md:hidden">
-                      <OutfitView pieces={message.outfitPieces} />
+                      <OutfitView
+                        pieces={message.outfitPieces}
+                        queryId={message.queryId}
+                        resultSetId={message.resultSetId}
+                      />
                     </div>
                   )}
                 </div>
@@ -190,14 +230,23 @@ export default function ChatInterface() {
                 <h2 className="text-sm font-semibold text-muted uppercase tracking-wide mb-4">
                   Your Outfit
                 </h2>
-                <OutfitView pieces={latestOutfitPieces} />
+                <OutfitView
+                  pieces={latestOutfitPieces}
+                  queryId={latestQueryId}
+                  resultSetId={latestResultSetId}
+                />
               </>
             ) : (
               <>
                 <h2 className="text-sm font-semibold text-muted uppercase tracking-wide mb-4">
                   Results
                 </h2>
-                <ProductGrid products={latestProducts} />
+                <ProductGrid
+                  products={latestProducts}
+                  queryId={latestQueryId}
+                  resultSetId={latestResultSetId}
+                  isOutfit={false}
+                />
               </>
             )}
           </div>

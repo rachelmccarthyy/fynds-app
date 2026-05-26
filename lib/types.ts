@@ -4,6 +4,8 @@ export interface Message {
   content: string;
   products?: Product[];
   outfitPieces?: OutfitPieceResult[];
+  queryId?: string;
+  resultSetId?: string;
 }
 
 export interface Product {
@@ -17,6 +19,7 @@ export interface Product {
   ratingCount?: number;
   productId?: string;
   delivery?: string;
+  product_key?: string;
 }
 
 export interface ProductOptions {
@@ -54,6 +57,11 @@ export interface ChatRequest {
   message: string;
   history: { role: "user" | "assistant"; content: string }[];
   styleProfile?: StyleProfile | null;
+  // Analytics context — generated client-side, threaded into server events
+  query_id?: string;
+  session_id?: string;
+  platform?: string;
+  anon_id?: string;
 }
 
 export interface ChatResponse {
